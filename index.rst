@@ -22,18 +22,17 @@ prototype. Performance of PPDB operations is crucial for Alert Production (AP)
 as it has to fetch and save large number of records in PPDB.
 
 
-
 AP Prototype
 ============
 
 Alert Production prototype is an application that simulates AP pipeline and
 uses PPDB interface to fetch/store DIA objects and sources. Initially PPDB
-implementation was developed as part of this prototype in lsst-dm/l1dbproto
-package. As implementation matured it has been moved to lsst/dax_ppdb package
-which is also used now by AP group for pipeline implementation.
+implementation was developed as part of this prototype in ``lsst-dm/l1dbproto``
+package. As implementation matured it has been moved to ``lsst/dax_ppdb``
+package which is also used now by AP group for pipeline implementation.
 
 Prototype application (``ap_proto``) contains mock implementation of Difference
-Image Analisys which is based on pre-computed posistion of a variable objects.
+Image Analysis which is based on pre-defined position of a variable objects.
 The average density of the variable objects is defined so that it produces
 about 10,000 sources per visit. On top of that mock DIA adds additional 50%
 random sources representing noise. Mock DIA does not generate any physical
@@ -46,16 +45,15 @@ extremely fast but its output is not usable for anything except performance
 studies.
 
 PPDB implementation that was developed as part of the prototype and currently
-existing in `dax_ppdb` is specially instrumented to produce logging
-information ad DEBUG level which includes timing information for individual
-PPDB operations. ``ap_proto`` adds more timing information to its own logging
-output. Separate script is used to analyze log files produced by prototype and
-generate summary CSV file with per-visit timing information which is later
-analyzed in Jupyter.
+existing in ``dax_ppdb`` is specially instrumented to produce logging
+records which include timing information for individual PPDB operations.
+``ap_proto`` adds more timing information to the logging output. Separate
+script is used to analyze log files produced by prototype and generate summary
+CSV file with per-visit timing information which is later analyzed in Jupyter.
 
-To simulate concurrency aspect of AP pipeline ``ap_proto`` splits circlular
-FOV region into a number of square tiles (e.g. 15 by 15) and is processed
-concurrently with other tiles. Tho different approaches were used for tile
+To simulate concurrency aspect of AP pipeline ``ap_proto`` splits circular
+FOV region into a number of square tiles (e.g. 15 by 15) and processed
+these tiles concurrently. Two different approaches were used for tile
 processing:
 
 - fork mode: after DIA mock stage script forks itself into the number of
@@ -66,10 +64,11 @@ processing:
   to all other processes, each running on data from its separate tile.
 
 Obvious drawback of the fork mode is a competition for CPU resources on single
-host, though tests show that this is not an isse due to a bottleneck on
-database server side. MPI more should produce more faithful simulation of
-actual pipeline running if there are sufficient number of hosts to run all
-processes.
+host with typical number of tiles much larger than number of cores even on
+relatively large hosts, though tests show that this is not an issue due to a
+bottleneck on database server side. MPI mode should produce more faithful
+simulation of actual pipeline running if there is a sufficient number of hosts
+to run all processes.
 
 
 PPDB Schema
