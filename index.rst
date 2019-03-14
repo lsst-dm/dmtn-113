@@ -27,8 +27,8 @@ AP Prototype
 
 Alert Production prototype is an application that simulates AP pipeline and
 uses PPDB interface to fetch/store DIA objects and sources. Initially PPDB
-implementation was developed as part of this prototype in ``lsst-dm/l1dbproto``
-package. As implementation matured it has been moved to ``lsst/dax_ppdb``
+implementation was developed as part of this prototype in `l1dbproto`_
+package. As implementation matured it has been moved to `dax_ppdb`_
 package which is also used now by AP group for pipeline implementation.
 
 Prototype application (``ap_proto``) contains mock implementation of Difference
@@ -45,7 +45,7 @@ extremely fast but its output is not usable for anything except performance
 studies.
 
 PPDB implementation that was developed as part of the prototype and currently
-existing in ``dax_ppdb`` is specially instrumented to produce logging
+existing in `dax_ppdb`_ is specially instrumented to produce logging
 records which include timing information for individual PPDB operations.
 ``ap_proto`` adds more timing information to the logging output. Separate
 script is used to analyze log files produced by prototype and generate summary
@@ -74,9 +74,61 @@ to run all processes.
 PPDB Schema
 ===========
 
+Database schema used in prototype is the baseline schema defined in `DPDD`_
+and `cat`_ package with some modifications:
+
+- DIAObject table adds few columns that are used by the prototype or AP
+  pipeline (these columns will probably be added to official schema).
+- Additional tables could be used by PPDB implementation to optimize access
+  to most frequently used data (effectively de-normalization of standard
+  schema), these tables are internal to implementation and do not change
+  client-visible schema.
+
+As mentioned above, prototype does not generate sensible science data for the
+bulk of the columns, only spatial information and Object/Source relations are
+are filled by prototype.
 
 Hardware Description
 ====================
+
+Different storage backends were tested on different platforms and different
+location, this was driven by hardware and backend availability at a time.
+
+Initial testing and development was performed on a single host at IN2P3 which
+allowed us to compare SSD and spinning disk-based storage options for
+database, with MySQL or PostgreSQL used as backend. Both clients and server
+were running on the same host (for the lack of other comparable hardware).
+Machine specifications are:
+
+- CPU: Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz
+- 2x14 physical cores, 56 total threads
+- 512GB RAM
+- SSD storage: 2TB NVMe and 3TB SATA
+- spinning disks: 7.3TB in RAID6 array
+
+In second series of tests with Oracle RAC at NCSA database server ran on 3
+identical hosts (details are in `NCSA_RAC`_):
+
+- Dual Intel Xeon E5-2650 @ 2.00GHz
+- 2x8 physical cores, 32 total threads
+- 128GB RAM
+- storage: NetApp array with 50x8TB HDDs, 10x1.5TB SSDs (RAID1 array),
+  connected via 16Gbps Fibre Channel
+
+Tests with PostgreSQL server on Google Cloud platform were using virtual
+Compute Engine, two hosts were set up, one for database server, another
+for clients. Specs for both hosts are:
+
+- Server host:
+
+  - 64 vCPU (Intel Sandy Bridge)
+  - 416GB RAM
+  - storage: 10TB SSD (network-connected)
+
+- Client host:
+
+  - 64 vCPU (Intel Sandy Bridge)
+  - 57GB RAM
 
 
 Individual Tests
@@ -97,3 +149,10 @@ PostgreSQL at Google Cloud
 
 Test Summary
 ============
+
+
+.. _cat: https://github.com/lsst/cat
+.. _dax_ppdb: https://github.com/lsst/dax_ppdb
+.. _DPDD: http://ls.st/dpdd
+.. _l1dbproto: https://github.com/lsst-dm/l1dbproto
+.. _NCSA_RAC: https://jira.lsstcorp.org/browse/DM-14712?focusedCommentId=133072&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-133072
