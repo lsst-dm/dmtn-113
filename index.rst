@@ -107,7 +107,7 @@ Machine specifications are:
 - spinning disks: 7.3TB in RAID6 array
 
 In second series of tests with Oracle RAC at NCSA database server ran on 3
-identical hosts (details are in `NCSA_RAC`_):
+identical hosts (details are in `NCSA RAC`_):
 
 - Dual Intel Xeon E5-2650 @ 2.00GHz
 - 2x8 physical cores, 32 total threads
@@ -138,6 +138,124 @@ Individual Tests
 MySQL and PostgreSQL at IN2P3
 -----------------------------
 
+Single-process tests with HDD
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This testing was mostly a part of a development process for initial version of
+PPDB implementation using baseline schema without big optimizations. Ticket
+`DM-6370`_ contains lots of details of this initial testing which was done
+with spinning disks. Tests ran in single-process mode, without splitting FOV
+into multiple tiles, all processing happened in the same client process.
+
+It quickly became clear that spinning disks do not provide sufficient
+performance for PPDB access pattern due to high latency. Modifying primary key
+definition of the DIAObject table with MySQL/InnoDB backend improved data
+locality and selection performance for that table. Baseline schema defines PK
+for DIAObject table as (``diaObjectId``, ``validityStart``), modified PK adds
+new leading column (``htm20``, ``diaObjectId``, ``validityStart``).
+MySQL/InnoDB stores data together with PK, having spatial column as first PK
+column leads to better data locality. This change has no effect on data
+locality for PostgreSQL.
+
+Even after this modification both MySQL and PostgreSQL performance on spinning
+disks was inadequate. Even for relatively small number of visits around 5,000
+time to read data from DIAObject table for single visit was at the level of 20
+seconds (DIASources were not even read from database in the first series of
+tests), time to store all records from one visit is at the level of 100
+seconds. It is obvious that concurrency is not going to improve situation
+drastically due to the IOPS limitation of spinning disks.
+
+Single-process tests with SSD
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For next series of tests SSD-based storage was used, with either SATA or NVMe
+disks, ticket `DM-8966`_ covers those tests. Quick summary of these test:
+
+- Performance is drastically better than with spinning disks.
+- SATA and NVMe disks show very similar performance numbers.
+- MySQL and PostgreSQL numbers also look very similar.
+- Time to read or write data grows approximately linearly with the number of
+  visits and amount of data in database.
+- Typical numbers for 15k visits is 10 seconds for select (which now includes
+  reading of sources in addition to objects) and about 15 seconds for inserts,
+  MySQL performance is slightly worse for inserts.
+- Largest contribution to select time is due to DIAObject select, 
+
+Ticket `DM-8965`_ tried to improve timing for DIAObject operations by
+de-normalizing that table into two separate tables. Baseline schema for
+DIAObject has begin/end times for validity interval, and intervals should
+cover whole range without gaps, so that begin time of one record is always an
+end time for some other record with the same object ID. AP pipeline only reads
+latest version of each DIAObject (with validity end time at +Infinity), and
+keeping spatial index of all interval is unnecessary overhead. Keeping latest
+version of each DIAObject in a separate table with spatial index we can speed
+up both select time (by reducing number of object in spacial index) and insert
+time (by excluding spatial column from PK for all intervals and not updating
+validity end time).
+
+Extended schema for DIAObject now consists of two tables:
+
+- ``DIAObject`` table with the same columns and indices as in baseline, except
+  that ``validityEnd`` column is not filled (it should be dropped from schema
+  entirely),
+- ``DIAObjectLast`` table with same columns as in ``DIAObject`` table, this
+  table contains latest version of each DIAObject.
+
+All select operation in AP pipeline select data from ``DIAObjectLast`` table,
+store operation for new DIAObjects updates both tables. Updates of
+``DIAObjectLast`` table can potentially be made faster by updating records in
+place, but that would require relaxing transaction isolation and may not be
+supported by some backends.
+
+With this updated schema select of DIAObject runs twice as fast compared to
+previous tests. MySQL also showed better insert performance when using REPLACE
+query instead of REMOVE+INSERT for ``DIAObjectLast``. PostgreSQL insert
+performance for two tables was slightly worse than insert into single table,
+in-place update (UPSERT) was not implemented for PostgreSQL in this test.
+
+Multi-process tests with SSD
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Ticket `DM-9301`_ runs tests on the same platform but in multi-process setup
+splitting FOV region into square tiles with either 5x5 or 15x15 split. Each
+tile is processed in a separate process and all of them run concurrently.
+Fork mode is used in this case, with server and all client processes running
+on the same machine. Same ``DIAObjectLast`` table was used for optimization
+of DIAObject access.
+
+Summary of findings for this series of tests:
+
+- multi-process setup runs significantly faster than single-process
+- 15x15 tiling runs faster than 5x5
+- PostgreSQL performs better than MySQL
+- with PostgreSQL performance of NVMe storage is better than SATA
+
+:ref:`Figure 1 <fig-in2p3-pg-15x15-best>` shows wall clock time per visit as
+a function of visit number for 15x15 tiling with PostgreSQL and NVMe storage.
+Note that on this and other plots boxes and whiskers signify quartiles, not
+RMS; and whiskers cover range of all observed values. Small red dots show
+average value.
+
+.. figure:: /_static/fig-in2p3-pg-15x15-best.png
+   :name: fig-in2p3-pg-15x15-best
+   :target: _static/fig-in2p3-pg-15x15-best.png
+   :alt: fig-in2p3-pg-15x15-best
+
+   Real time per visit as a function of visit number.
+
+Summary of the results from IN2P3
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The results of all above tests could be summarized as:
+
+- Spinning disk storage performance is clearly inadequate for PPDB.
+- SSD storage shows promising results at relatively low number of visits with
+  concurrent tile/CCD processing.
+- Processing time shows approximately linear dependency on the size of the
+  data in database and number of visits.
+- Further studies with larger data volumes are clearly needed to understand
+  scaling behavior.
+
 
 Oracle RAC at NCSA
 ------------------
@@ -155,4 +273,9 @@ Test Summary
 .. _dax_ppdb: https://github.com/lsst/dax_ppdb
 .. _DPDD: http://ls.st/dpdd
 .. _l1dbproto: https://github.com/lsst-dm/l1dbproto
-.. _NCSA_RAC: https://jira.lsstcorp.org/browse/DM-14712?focusedCommentId=133072&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-133072
+.. _NCSA RAC: https://jira.lsstcorp.org/browse/DM-14712?focusedCommentId=133072&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-133072
+
+.. _DM-6370: https://jira.lsstcorp.org/browse/DM-6370
+.. _DM-8966: https://jira.lsstcorp.org/browse/DM-8966
+.. _DM-8965: https://jira.lsstcorp.org/browse/DM-8965
+.. _DM-9301: https://jira.lsstcorp.org/browse/C
