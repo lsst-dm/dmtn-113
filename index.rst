@@ -1,4 +1,3 @@
-
 :tocdepth: 1
 
 .. Please do not modify tocdepth; will be fixed when a new Sphinx theme is shipped.
@@ -17,9 +16,10 @@
 Introduction
 ============
 
-This technical note describes an summarizes performance tests with PPDB
-prototype. Performance of PPDB operations is crucial for Alert Production (AP)
-as it has to fetch and save large number of records in PPDB.
+This technical note describes an summarizes performance tests with
+:abbr:`PPDB (Prompt Products Database)` prototype. Performance of PPDB
+operations is crucial for Alert Production (AP) as it has to fetch and save
+large number of records in PPDB.
 
 
 AP Prototype
@@ -239,7 +239,6 @@ average value.
 .. figure:: /_static/fig-in2p3-pg-15x15-best.png
    :name: fig-in2p3-pg-15x15-best
    :target: _static/fig-in2p3-pg-15x15-best.png
-   :alt: fig-in2p3-pg-15x15-best
 
    Real time per visit as a function of visit number.
 
@@ -260,6 +259,113 @@ The results of all above tests could be summarized as:
 Oracle RAC at NCSA
 ------------------
 
+Next round of tests was performed at NCA with a newly-provisioned Oracle RAC
+system. Prototype code needed to be adapted for Oracle to use most efficient
+constructs that are backend-specific.
+
+Initial tests
+^^^^^^^^^^^^^
+
+Ticket `DM-14712`_ provides a long story of the attempt to understand and
+control Oracle behavior with PPDB. Some notable updates to implementation that
+were implemented for Oracle are:
+
+- ``DIAObjectLast`` table is created as Index-Organized Table (IOT) to reduce
+  additional access to heap data.
+- This also required reduction of the width of the table as IOT performance
+  with wide table was unacceptable, leaving nly about 15 columns in that table
+  that are needed by AP pipeline helped to improve performance.
+
+Cluster storage included both spinning disks and SSD, for initial testing I
+tried to compare SSD and spinning disk performance but results were
+inconclusive, performance with HDD was not much worse than with SSD, this
+could be due to large in-memory cache of the array controller.
+
+A lot of time and effort was spent trying to understand significant
+performance drop observed for small data size (low visit count). The effect
+was seen as quickly growing processing time for visit which then quickly
+dropped to a reasonable numbers. :ref:`Figure 2 <fig-oracle-15x15-problem>`
+show this behavior.
+
+.. figure:: /_static/fig-oracle-15x15-problem.png
+   :name: fig-oracle-15x15-problem
+   :target: _static/fig-oracle-15x15-problem.png
+
+   Plot illustrating Oracle performance degradation at low visit numbers.
+
+Database administrator explained that this unfortunate behavior could be
+remedied by pre-loading table statistics that is needed for optimizer, but
+that statistics need to be obtained first from running on a larger volumes
+of data. Several attempt to find workarounds based on query hints were
+unsuccessful.
+
+Summary from these initial tests (copied from JIRA ticket):
+
+- With freshly initialized schema optimizer prefers (FAST) FULL INDEX SCAN
+  which is significantly worse than INDEX RANGE SCAN plan.
+- It looks like optimizer needs to have significant volume of data in a table
+  before it switches to a more efficient plan, I estimate some thing like
+  10-20 million rows.
+- I think stats collection has to be enabled for that too.
+- We failed to find a way to force Oracle to lock into a better plan using
+  query hints.
+- IOT works reasonably well if table has small number of columns, I think this
+  is what we want for production.
+
+
+Testing multi-node clients
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Pervious tests were running prototype in a fork mode using single host on
+LSST verification cluster. One machine with relatively large number of cores
+can reasonably handle CPU load from 255 forked processes, but fork mode has
+one significant drawback in that it needs to open new database connection
+in each forked process. More efficient approach would be to have per-CCD
+processes always running and always connected to the database eliminating
+overhead of making new database connections. This approach was implemented
+in the new series of Oracle tests using MPI for inter-process communication.
+MPI also allowed us to use more than one node on client side which eliminates
+potential client-side bottleneck from non-shared memory.
+
+Ticket `DM-16404`_ describes the results of running Oracle tests using MPI
+mode with AP prototype running on several machines from LSST verification
+cluster. To estimate the effect of permanent database connections test was
+initially configured to close and re-establish connection on every visit but
+later was switched to permanent connection mode.
+:ref:`Figure 3 <fig-oracle-15x15-mpi>` shows the effect of that switch,
+per-visit processing time was reduced by about 2 seconds.
+:ref:`Figure 4 <fig-oracle-15x15-mpi-fit>` shows the fit of the data in the
+region with permanent connections.
+
+.. figure:: /_static/fig-oracle-15x15-mpi.png
+   :name: fig-oracle-15x15-mpi
+   :target: _static/fig-oracle-15x15-mpi.png
+
+   Plot illustrating the effect of keeping database connection, after visit
+   10,000 connections were made permanent. This plot excludes initial region
+   with poor performance.
+
+.. figure:: /_static/fig-oracle-15x15-mpi-fit.png
+   :name: fig-oracle-15x15-mpi-fit
+   :target: _static/fig-oracle-15x15-mpi-fit.png
+
+   Fit of the above scatter plot for visits above 10,000.
+
+Summary of Oracle tests
+^^^^^^^^^^^^^^^^^^^^^^^
+
+In general performance of Oracle server is comparable with the numbers from
+PostgreSQL test in the region where they overlap (below 15 visits) even though
+those numbers were obtained in very different hardware setup. Fit of the data
+shows that Oracle performance drops somewhat faster with the number of visits.
+At 30k visits prototype spends about 10 seconds on data persistency which
+could still be reasonable for AP pipeline. With linear behavior it is clear
+that we need some different approach to scale this beyond one month of data.
+
+The issue with quick initial performance drop for Oracle has not been
+understood or satisfactory resolved, requiring additional step to collect
+statistics and pre-load it may be a significant drawback for production
+activities.
 
 PostgreSQL at Google Cloud
 --------------------------
@@ -278,4 +384,6 @@ Test Summary
 .. _DM-6370: https://jira.lsstcorp.org/browse/DM-6370
 .. _DM-8966: https://jira.lsstcorp.org/browse/DM-8966
 .. _DM-8965: https://jira.lsstcorp.org/browse/DM-8965
-.. _DM-9301: https://jira.lsstcorp.org/browse/C
+.. _DM-9301: https://jira.lsstcorp.org/browse/DM-9301
+.. _DM-14712: https://jira.lsstcorp.org/browse/DM-14712
+.. _DM-16404: https://jira.lsstcorp.org/browse/DM-16404
