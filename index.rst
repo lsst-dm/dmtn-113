@@ -351,6 +351,29 @@ region with permanent connections.
 
    Fit of the above scatter plot for visits above 10,000.
 
+In addition to total per-visit time collected statistics included time per
+individual types of database query, e.g. selecting or saving DIAObjects.
+Comparing visit dependency of these times shows that fastest growing value
+is the time to select DIASource history, followed closely by time to select
+DIAForcedSource history. Both timings show approximately linear growth with
+the number of visits (though Forced Source time probbably goes faster).
+:ref:`Figure 5 <src_select>` and :ref:`Figure 6 <fig-oracle-15x15-mpi-fsrc_select>`
+show their corresponding plots. Scaling these two queries to 12 months as
+required by AP pipeline is probably a most significant problem in PPDB.
+
+.. figure:: /_static/fig-oracle-15x15-mpi-src_select.png
+   :name: fig-oracle-15x15-mpi-src_select
+   :target: _static/fig-oracle-15x15-mpi-src_select.png
+
+   Time to select DIASource history from PPDB as function of visit number.
+
+.. figure:: /_static/fig-oracle-15x15-mpi-fsrc_select.png
+   :name: fig-oracle-15x15-mpi-fsrc_select
+   :target: _static/fig-oracle-15x15-mpi-fsrc_select.png
+
+   Time to select DIAForcedSource history from PPDB as function of visit
+   number.
+
 Summary of Oracle tests
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -370,6 +393,17 @@ activities.
 PostgreSQL at Google Cloud
 --------------------------
 
+To study longer periods than it was possible at IN2P3 PostgreSQL tests were
+repeated on Google Cloud platform. Ticket `DM-17654`_ describes results
+obtained in that test. Google Cloud provides reasonable options for CPU and
+memory ranges, SSD storage is available in significant volumes but it is
+network-attached and shared which impacts performance. Google documents
+their SSD performance at the level of 60k IOPS for reading and 30k IOPS for
+writing (`Gcloud SSD performance`_) which is lower than can be achieved with
+locally-attached NVMe storage.
+
+
+
 
 Test Summary
 ============
@@ -387,3 +421,5 @@ Test Summary
 .. _DM-9301: https://jira.lsstcorp.org/browse/DM-9301
 .. _DM-14712: https://jira.lsstcorp.org/browse/DM-14712
 .. _DM-16404: https://jira.lsstcorp.org/browse/DM-16404
+.. _DM-17654: https://jira.lsstcorp.org/browse/DM-17654
+.. _Gcloud SSD performance: https://cloud.google.com/compute/docs/disks/performance
