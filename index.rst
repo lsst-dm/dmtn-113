@@ -230,7 +230,7 @@ Summary of findings for this series of tests:
 - PostgreSQL performs better than MySQL
 - with PostgreSQL performance of NVMe storage is better than SATA
 
-:ref:`Figure 1 <fig-in2p3-pg-15x15-best>` shows wall clock time per visit as
+:numref:`fig-in2p3-pg-15x15-best` shows wall clock time per visit as
 a function of visit number for 15x15 tiling with PostgreSQL and NVMe storage.
 Note that on this and other plots boxes and whiskers signify quartiles, not
 RMS; and whiskers cover range of all observed values. Small red dots show
@@ -284,8 +284,8 @@ could be due to large in-memory cache of the array controller.
 A lot of time and effort was spent trying to understand significant
 performance drop observed for small data size (low visit count). The effect
 was seen as quickly growing processing time for visit which then quickly
-dropped to a reasonable numbers. :ref:`Figure 2 <fig-oracle-15x15-problem>`
-show this behavior.
+dropped to a reasonable numbers. :numref:`fig-oracle-15x15-problem` show this
+behavior.
 
 .. figure:: /_static/fig-oracle-15x15-problem.png
    :name: fig-oracle-15x15-problem
@@ -332,10 +332,10 @@ mode with AP prototype running on several machines from LSST verification
 cluster. To estimate the effect of permanent database connections test was
 initially configured to close and re-establish connection on every visit but
 later was switched to permanent connection mode.
-:ref:`Figure 3 <fig-oracle-15x15-mpi>` shows the effect of that switch,
-per-visit processing time was reduced by about 2 seconds.
-:ref:`Figure 4 <fig-oracle-15x15-mpi-fit>` shows the fit of the data in the
-region with permanent connections.
+:numref:`fig-oracle-15x15-mpi` shows the effect of that switch, per-visit
+processing time was reduced by about 2 seconds.
+:numref:`fig-oracle-15x15-mpi-fit` shows the fit of the data in the region
+with permanent connections.
 
 .. figure:: /_static/fig-oracle-15x15-mpi.png
    :name: fig-oracle-15x15-mpi
@@ -356,23 +356,16 @@ individual types of database query, e.g. selecting or saving DIAObjects.
 Comparing visit dependency of these times shows that fastest growing value
 is the time to select DIASource history, followed closely by time to select
 DIAForcedSource history. Both timings show approximately linear growth with
-the number of visits (though Forced Source time probbably goes faster).
-:ref:`Figure 5 <src_select>` and :ref:`Figure 6 <fig-oracle-15x15-mpi-fsrc_select>`
-show their corresponding plots. Scaling these two queries to 12 months as
-required by AP pipeline is probably a most significant problem in PPDB.
+the number of visits. :numref:`fig-oracle-15x15-mpi-select` shows these
+dependencies. Scaling these two queries to 12 months as required by AP
+pipeline is probably a most significant problem in PPDB.
 
-.. figure:: /_static/fig-oracle-15x15-mpi-src_select.png
-   :name: fig-oracle-15x15-mpi-src_select
-   :target: _static/fig-oracle-15x15-mpi-src_select.png
+.. figure:: /_static/fig-oracle-15x15-mpi-select.png
+   :name: fig-oracle-15x15-mpi-select
+   :target: _static/fig-oracle-15x15-mpi-select.png
 
-   Time to select DIASource history from PPDB as function of visit number.
-
-.. figure:: /_static/fig-oracle-15x15-mpi-fsrc_select.png
-   :name: fig-oracle-15x15-mpi-fsrc_select
-   :target: _static/fig-oracle-15x15-mpi-fsrc_select.png
-
-   Time to select DIAForcedSource history from PPDB as function of visit
-   number.
+   Time for different select queries as function of visit number. Top line is
+   a combined sum of three other contributions.
 
 Summary of Oracle tests
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -402,11 +395,74 @@ their SSD performance at the level of 60k IOPS for reading and 30k IOPS for
 writing (`Gcloud SSD performance`_) which is lower than can be achieved with
 locally-attached NVMe storage.
 
+This series of tests ran in a fork mode on a single client machine with 64
+cores. Quick test was done with MPI mode with all client running on the same
+host but its performance was worse than fork mode. No attempt was done to
+run MPI tests on multiple client hosts, with the main bottleneck being
+on server side it likely will not show any improvement (though connection
+reuse can bring small improvement as was seen in Oracle tests).
 
+These tests were running for longer period, in total 57k visits were
+generated. Performance seen in these tests is comparable to Oracle, with
+somewhat improved reading performance and somewhat worse writing performance
+(latter can probably be explained by storage IOPS limitation). Reading times
+still increase approximately linearly with the number of visits.
+:numref:`fig-pg-gcloud-15x15-57k-select` shows visit dependency for all select
+queries. Largest contribution as before comes from reading DIASource history.
+
+.. figure:: /_static/fig-pg-gcloud-15x15-57k-select.png
+   :name: fig-pg-gcloud-15x15-57k-select
+   :target: _static/fig-pg-gcloud-15x15-57k-select.png
+
+   Time for different select queries as function of visit number
+
+:numref:`table-pg-data-size-gcloud` details disk space used by individual
+tables and their corresponding indices after 57k visits.
+
+.. _table-pg-data-size-gcloud:
+
+.. table:: Sizes of the tables and their indices after 57k processed visits.
+
+    +---------------------------+--------------+------------+------------+------------+
+    |        table_name         | row_estimate |   total    |   index    |   table    |
+    +===========================+==============+============+============+============+
+    | DiaObject                 |  3.82072e+09 | 3003 GB    | 352 GB     | 2651 GB    |
+    +---------------------------+--------------+------------+------------+------------+
+    | DiaSource                 |  8.59906e+08 | 847 GB     | 118 GB     | 729 GB     |
+    +---------------------------+--------------+------------+------------+------------+
+    | DiaForcedSource           |  3.82071e+09 | 548 GB     | 248 GB     | 301 GB     |
+    +---------------------------+--------------+------------+------------+------------+
+    | DiaObjectLast             |  3.14808e+08 | 86 GB      | 29 GB      | 58 GB      |
+    +---------------------------+--------------+------------+------------+------------+
+    | **Totals**                |              | 4484 GB    | 747 GB     | 3739 GB    |
+    +---------------------------+--------------+------------+------------+------------+
 
 
 Test Summary
 ============
+
+Main conclusion from tests performed so far is that performance may be
+reasonable for one or two months of data with data stored on SSD but
+performance drops linearly with the number of visits. Largest contribution
+to this slowdown comes from reading the history of DIASource, improvements
+have to be made for this table and DIAForcedSource if we are to scale
+it to full 12 months of history.
+
+Reading speed can be improved if we can keep their data in memory, e.g.
+in-memory tables or memory-based filesystem. Storing all 12 months of data
+in memory for these tables is not feasible at this point for a single host.
+Potentially memory storage could only keep data for next few visits (if
+visit pointing is predictable) but pre-fetching of that data will very
+likely interfere with other database and I/O activities on the same host.
+
+It is likely that the only solution for this problem is a scalable
+distributed data store with multiple servers and significant parallelism.
+The technology for that backend does not have to support relational model
+directly as long as it maps reasonable to PPDB data model and provides
+data safety guarantees. Potential options can include in-memory stores
+with disk persistence or SSD-based storage with in-memory cache and
+pre-fetch options. With any solution replication and high availability
+would be required to avoid disruptions during critical periods.
 
 
 .. _cat: https://github.com/lsst/cat
