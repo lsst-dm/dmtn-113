@@ -359,6 +359,12 @@ DIAForcedSource history. Both timings show approximately linear growth with
 the number of visits. :numref:`fig-oracle-15x15-mpi-select` shows these
 dependencies. Scaling these two queries to 12 months as required by AP
 pipeline is probably a most significant problem in PPDB.
+:numref:`fig-oracle-15x15-mpi-insert` shows insert time as a function of
+visit number. Full time (marked as "store_real" on plot) shows linear
+dependency and is significantly lower than select time. Total time is
+dominated by insert time for DIAObject, that time is much higher than
+insert time for DAISource and DIAForcedSource, this is due to more complex
+indices needed for DIAObject.
 
 .. figure:: /_static/fig-oracle-15x15-mpi-select.png
    :name: fig-oracle-15x15-mpi-select
@@ -366,6 +372,13 @@ pipeline is probably a most significant problem in PPDB.
 
    Time for different select queries as function of visit number. Top line is
    a combined sum of three other contributions.
+
+.. figure:: /_static/fig-oracle-15x15-mpi-insert.png
+   :name: fig-oracle-15x15-mpi-insert
+   :target: _static/fig-oracle-15x15-mpi-insert.png
+
+   Time for different insert queries as function of visit number. Top line is
+   a combined sum of all individual contributions.
 
 Summary of Oracle tests
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -409,12 +422,27 @@ somewhat improved reading performance and somewhat worse writing performance
 still increase approximately linearly with the number of visits.
 :numref:`fig-pg-gcloud-15x15-57k-select` shows visit dependency for all select
 queries. Largest contribution as before comes from reading DIASource history.
+:numref:`fig-pg-gcloud-15x15-57k-insert` shows insert times as a function of
+visit. These times are approximately 4 times higher compared to Oracle case
+and they are comparable to select times. Total insert time is similarly
+dominated by DIAObject insert time and their visit dependency is not linear
+any more. DIAObject insert time appears to be proportional to the total number
+of DIAObjects inserted, growth slows after approximately 24k visits as the
+forced photometry has a cutoff time of 30 days for noise sources. This lower
+performance of inserts could be explained by limited IOPS that are inherent
+to network-attached storage.
 
 .. figure:: /_static/fig-pg-gcloud-15x15-57k-select.png
    :name: fig-pg-gcloud-15x15-57k-select
    :target: _static/fig-pg-gcloud-15x15-57k-select.png
 
    Time for different select queries as function of visit number
+
+.. figure:: /_static/fig-pg-gcloud-15x15-57k-insert.png
+   :name: fig-pg-gcloud-15x15-57k-insert
+   :target: _static/fig-pg-gcloud-15x15-57k-insert.png
+
+   Time for different insert queries as function of visit number
 
 :numref:`table-pg-data-size-gcloud` details disk space used by individual
 tables and their corresponding indices after 57k visits.
