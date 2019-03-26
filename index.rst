@@ -380,6 +380,17 @@ indices needed for DIAObject.
    Time for different insert queries as function of visit number. Top line is
    a combined sum of all individual contributions.
 
+:numref:`fig-oracle-15x15-mpi-fraction-above-10` shows fraction of the visits
+with total visit time higher than 10 seconds as a function of visit number.
+This plot is for illustration only, it is difficult to interpret its behavior
+without understanding many details of prototype or its execution environment.
+
+.. figure:: /_static/fig-oracle-15x15-mpi-fraction-above-10.png
+   :name: fig-oracle-15x15-mpi-fraction-above-10
+   :target: _static/fig-oracle-15x15-mpi-fraction-above-10.png
+
+   Fraction of visits with total total visit time higher than 10 seconds.
+
 Summary of Oracle tests
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -443,6 +454,16 @@ to network-attached storage.
    :target: _static/fig-pg-gcloud-15x15-57k-insert.png
 
    Time for different insert queries as function of visit number
+
+:numref:`fig-pg-gcloud-15x15-57k-fraction-above-10` shows fraction of the
+visits with total visit time higher than 10 seconds as a function of visit
+number. Same caveat applies to this plot as to corresponding Oracle plot.
+
+.. figure:: /_static/fig-pg-gcloud-15x15-57k-fraction-above-10.png
+   :name: fig-pg-gcloud-15x15-57k-fraction-above-10
+   :target: _static/fig-pg-gcloud-15x15-57k-fraction-above-10.png
+
+   Fraction of visits with total total visit time higher than 10 seconds.
 
 :numref:`table-pg-data-size-gcloud` details disk space used by individual
 tables and their corresponding indices after 57k visits.
