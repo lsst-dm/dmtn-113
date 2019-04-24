@@ -251,7 +251,7 @@ The results of all above tests could be summarized as:
 Oracle RAC at NCSA
 ------------------
 
-Next round of tests was performed at NCA with a newly-provisioned Oracle RAC
+Next round of tests was performed at NCSA with a newly-provisioned Oracle RAC
 system. Prototype code needed to be adapted for Oracle to use most efficient
 constructs that are backend-specific.
 
